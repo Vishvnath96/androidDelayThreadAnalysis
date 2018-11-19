@@ -17,3 +17,10 @@ same things we captured after:
 (dashboard images attached for reference)
 
 # How to use it
+include <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" /> in your debug manifest or mainApp manifest file , as store .trace file in external storage.
+1.integrate this latency folder in your android espresso project where all your test packages are there.
+2.android test class should extends DelayCriticalBaseTest
+3.in your test cases call captureThreadData(traceFileName)
+4. run your test and and you will visualize result as given below
+
+![alt text](http://url/to/img.png)
