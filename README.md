@@ -24,3 +24,7 @@ include <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE
 4. run your test and and you will visualize result as given below
 
 ![Visualization](https://github.com/Vishvnath96/androidDelayThreadAnalysis/blob/integration/HomePageTread.png)
+
+We can also get thread info and method info for further dig analysis
+![moreinfo](https://github.com/Vishvnath96/androidDelayThreadAnalysis/blob/integration/threadInfo.png)
+![moreinfo](https://github.com/Vishvnath96/androidDelayThreadAnalysis/blob/integration/calleecount.png)
