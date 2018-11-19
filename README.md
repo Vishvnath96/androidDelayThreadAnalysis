@@ -7,7 +7,9 @@ Thread will be delay thread if and only if it meets two conditions simultaneousl
 
 Here we are capturing android thread dump analasys via automated solution.same we can calculate after running android profiler in Android studio for the time period and analyze its call stack like threads name,invocation count,no. of callee ,no of subcallee ,time taken by the method name in callee class etc.
 
-same things we captured after:
+# Architecture
+![](https://github.com/Vishvnath96/androidDelayThreadAnalysis/blob/integration/architecture.png)
+above things we captured after:
 1.running automation test for specific scenario
 2. captured tracefile for the scenario in the end (activityname.trace) in @test class
 3. this tets class extends DelayCriticalBaseTest ,pass the .tracefile in captureThreadData(filename.trace) and will parse the .tracefile and extract all threads info with its callee,parents and invocation count.
@@ -15,6 +17,7 @@ same things we captured after:
 4. after capturing data we hit one opentsdb api for dumping data in db. (here we use opentsdb as grafana dashboard integration is quite easy with  it).
 5. generate dashboard on grafana for regular monitoring.
 (dashboard images attached for reference)
+
 
 # How to use it
 include <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" /> in your debug manifest or mainApp manifest file , as store .trace file in external storage.
