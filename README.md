@@ -5,7 +5,7 @@ Thread will be delay thread if and only if it meets two conditions simultaneousl
 1.it processes user input directly or indirectly,
 2.it changes screen output directly or indirectly. Obviously, if a thread meets the preceding two conditions (e.g., displaying an image upon a button click), its execution time can be perceivable to users and thus affect user-perceived latency.(e.g., displaying an image upon a button click).
 
-Here we are capturing android thread dump analasys via automated solution.same we can calculate after running android profiler in Android studio for the time period and analyze its call stack like threads name,invocation count,no. of callee ,no of subcallee ,time taken by the method name in callee class etc.
+Here we are capturing android thread dump analysis via automated solution.same we can calculate after running android profiler in Android studio for the time period and analyze its call stack like threads name,invocation count,no. of callee ,no of subcallee ,time taken by the method name in callee class etc.
 
 # Architecture
 ![](https://github.com/Vishvnath96/androidDelayThreadAnalysis/blob/integration/architecture.png)
