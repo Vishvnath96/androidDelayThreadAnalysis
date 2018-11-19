@@ -23,4 +23,4 @@ include <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE
 3.in your test cases call captureThreadData(traceFileName)
 4. run your test and and you will visualize result as given below
 
-![alt text](http://url/to/img.png)
+![Visualization](https://github.com/Vishvnath96/androidDelayThreadAnalysis/blob/integration/HomePageTread.png)
