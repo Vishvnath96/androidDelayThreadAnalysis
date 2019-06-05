@@ -1,0 +1,170 @@
+package com.mmt.travel.app.Tests;
+
+import android.Manifest;
+import android.app.Activity;
+import android.content.SharedPreferences;
+import android.preference.PreferenceManager;
+import android.util.SparseArray;
+
+import com.mmt.travel.app.NFR.CPUImpl.MethodTrace;
+import com.mmt.travel.app.NFR.Latency.CallStackReconstructor;
+import com.mmt.travel.app.NFR.Latency.VmTraceData;
+import com.mmt.travel.app.NFR.Latency.VmTraceHandler;
+import com.mmt.travel.app.NFR.Latency.VmTraceParser;
+import com.mmt.travel.app.NFR.Latency.builder.DelayThreadMetricBuilder;
+import com.mmt.travel.app.NFR.Latency.model.ThreadMetrics;
+import com.mmt.travel.app.NFR.Latency.util.PgNameForDelayTread;
+import com.mmt.travel.app.Utils.ElementUtil;
+import com.mmt.travel.app.common.util.ResourceProvider;
+import com.mmt.travel.app.mobile.MMTApplication;
+
+import org.junit.After;
+import org.junit.Before;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static com.mmt.travel.app.Utils.ElementUtil.getActivityInstance;
+
+/**
+ * Created by mmt6054 on 24/10/18.
+ */
+
+public class DelayCriticalBaseTest {
+
+    private ResourceProvider resourceProvider;
+    SparseArray<String> threadInfo;
+    String activityName;
+    int threadCount = PgNameForDelayTread.threadCount;
+    File file;
+
+    protected DelayCriticalBaseTest(){
+        MMTApplication.isEspressoRunning = true;
+    }
+
+    @After
+    public void clearAppData(){
+        Activity mActivity = getActivityInstance();
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(mActivity);
+        prefs.edit().clear().commit();
+        mActivity.deleteDatabase("makemytrip.db");
+        System.runFinalization();
+        Runtime.getRuntime().gc();
+        System.gc();
+    }
+
+
+    public void captureDelayCriticalThreadData(String activityName){
+        String path = "/sdcard/"+activityName+".trace";
+        file = new File(path);
+        this.activityName = activityName;
+        Map<Integer, String> map = new HashMap<>();
+        List<ThreadMetrics> threadMetricsList = new ArrayList<>();
+        if (file.exists()) {
+            VmTraceData.Builder dataBuilder = new VmTraceData.Builder();
+            VmTraceParser parser = new VmTraceParser(file, dataBuilder);
+            try {
+                parser.parse();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            List<Object> keys = new ArrayList<>();
+            //parser.parseHeader(f);
+
+            //VmTraceData traceData = dataBuilder.build();
+            VmTraceHandler traceDataHandler = VmTraceParser.traceDataHandler;
+            SparseArray<CallStackReconstructor> mStackReconstructors = ((VmTraceData.Builder) traceDataHandler).mStackReconstructors;
+            Map<Long, CallStackReconstructor> callStackReconstructorMap = CallStack(mStackReconstructors);
+
+
+            threadInfo((VmTraceData.Builder) traceDataHandler);
+
+            Set<Map.Entry<Long, CallStackReconstructor>> entrySetKeys = callStackReconstructorMap.entrySet();
+            DelayThreadMetricBuilder.metricCounter = threadCount;
+
+            for(Map.Entry<Long,CallStackReconstructor> entry : entrySetKeys){
+                delayCriticalThreadInfo(entry,threadMetricsList,"Landing");
+            }
+            publishGrafanaData(threadMetricsList);
+    }
+}
+
+    private Map<Long,CallStackReconstructor> CallStack(SparseArray<CallStackReconstructor> mStackReconstructors) {
+        Map<Long,CallStackReconstructor> map = new HashMap<>();
+        for(int i=0;i < mStackReconstructors.size();i++){
+            map.put((long) mStackReconstructors.keyAt(i),mStackReconstructors.valueAt(i));
+        }
+        return map;
+    }
+
+    private String findThreadName(Long threadKey) {
+        return threadInfo.get(threadKey.intValue());
+    }
+
+    private SparseArray<String> threadInfo(VmTraceData.Builder traceDataHandler) {
+        this.threadInfo = traceDataHandler.mThreads;
+        return traceDataHandler.mThreads;
+    }
+
+    private void delayCriticalThreadInfo(Map.Entry<Long, CallStackReconstructor> entry, List<ThreadMetrics> threadMetricsList, String activityName) {
+        ThreadMetrics threadMetrics = new ThreadMetrics();
+        CallStackReconstructor callStackReconstructor = entry.getValue();
+        int calleeLength = callStackReconstructor.mTopLevelCalls.size();
+        long[] threadStartTime = new long[calleeLength];
+        long[] threadEndTime = new long[calleeLength];
+        long[] globalStartTime = new long[calleeLength];
+        long[] globalEndTime = new long[calleeLength];
+
+        for(int i=0;i<calleeLength;i++){
+            threadStartTime[i] =  callStackReconstructor.mTopLevelCalls.get(i).getMethodEntryThreadTime();
+            threadEndTime[i] =  callStackReconstructor.mTopLevelCalls.get(i).getMethodExitThreadTime();
+            globalStartTime[i] = callStackReconstructor.mTopLevelCalls.get(i).getMethodEntryGlobalTime();
+            globalEndTime[i] = callStackReconstructor.mTopLevelCalls.get(i).getMethodExitGlobalTime();
+        }
+        Arrays.sort(threadStartTime);
+        Arrays.sort(threadEndTime);
+        Arrays.sort(globalStartTime);
+        Arrays.sort(globalEndTime);
+        threadMetrics.setNoOfCallee(calleeLength);
+        threadMetrics.setThreadName(findThreadName(entry.getKey()));
+        threadMetrics.setThreadTotalTime((threadEndTime[calleeLength-1] - threadStartTime[0])/100); //time in milliseconds
+        threadMetrics.setGlobalTotalTime((Math.abs(globalEndTime[calleeLength-1] - globalStartTime[0]))/100); //time in milliseconds
+        threadMetricsList.add(threadMetrics);
+    }
+
+    private void publishGrafanaData(List<ThreadMetrics> threadMetricsList) {
+        Collections.sort(threadMetricsList);
+        int count = 0;
+        for(ThreadMetrics threadMetrics: threadMetricsList){
+            DelayThreadMetricBuilder.generateGrafanaData(threadMetrics,activityName,false);
+            count++;
+            if(count >= threadCount){
+                break;
+            }
+        }
+        for(ThreadMetrics threadMetrics: threadMetricsList){
+            if(threadMetrics.getThreadName().contains("Picasso-Dispatcher") || threadMetrics.getThreadName().contains("OkHttp") || threadMetrics.getThreadName().contains("Rx")
+                    || threadMetrics.getThreadName().contains("AsyncTask") || threadMetrics.getThreadName().contains("Firebase")){
+                DelayThreadMetricBuilder.generateGrafanaData(threadMetrics,activityName,true);
+            }
+        }
+    }
+
+    public void captureThreadData(String pageName) throws InterruptedException {
+        ElementUtil.generateRunTimePermission(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        ElementUtil.handleRunTimePermission(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        MethodTrace.getTrace(pageName);
+        Thread.sleep(15000);
+        MethodTrace.stopTrace();
+        captureDelayCriticalThreadData(pageName);
+    }
+
+
+}
