@@ -1,0 +1,189 @@
+package com.mmt.travel.app.Tests.HTL.NFR;
+
+import android.Manifest;
+import android.support.test.espresso.web.internal.deps.guava.primitives.Ints;
+import android.support.test.rule.ActivityTestRule;
+import android.support.test.runner.AndroidJUnit4;
+import android.util.Log;
+
+import com.mmt.travel.app.Hotels.Booking.HotelsPayment;
+import com.mmt.travel.app.Hotels.Details.HotelsDetails;
+import com.mmt.travel.app.Hotels.Landing.HotelsLanding;
+import com.mmt.travel.app.Hotels.Listing.HotelsListing;
+import com.mmt.travel.app.Hotels.Review.HotelsReview;
+import com.mmt.travel.app.Hotels.SelectRoom.HotelsSelectRoom;
+import com.mmt.travel.app.Model.Constants.HTL.HotelConstant;
+import com.mmt.travel.app.Model.Pojo.HTL.HotelDbTestData;
+import com.mmt.travel.app.Model.Pojo.HTL.HotelSearchData;
+import com.mmt.travel.app.Model.Pojo.HTL.HotelTravellerData;
+import com.mmt.travel.app.Model.Pojo.HTL.TariffType;
+import com.mmt.travel.app.NFR.CPUImpl.MethodTrace;
+import com.mmt.travel.app.NFR.Latency.Call;
+import com.mmt.travel.app.NFR.Latency.ClockType;
+import com.mmt.travel.app.NFR.Latency.MethodInfo;
+import com.mmt.travel.app.NFR.Latency.ThreadInfo;
+import com.mmt.travel.app.NFR.Latency.VmTraceData;
+import com.mmt.travel.app.NFR.Latency.VmTraceParser;
+import com.mmt.travel.app.NFR.Latency.util.PgNameForDelayTread;
+import com.mmt.travel.app.NFR.Latency.util.TestResources;
+import com.mmt.travel.app.NFR.NFRFuntions.Lob;
+import com.mmt.travel.app.Tests.DelayCriticalBaseTest;
+import com.mmt.travel.app.Tests.NFRBaseTest;
+import com.mmt.travel.app.Utils.AbExperimentUtil;
+import com.mmt.travel.app.Utils.ElementUtil;
+import com.mmt.travel.app.home.ui.SplashActivity;
+
+import org.junit.Assert;
+import org.junit.FixMethodOrder;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.MethodSorters;
+
+import java.io.File;
+import java.io.IOException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
+import static com.mmt.travel.app.Hotels.HotelsBase.getHotelDbTestData;
+import static com.mmt.travel.app.Hotels.HotelsBase.setHotelDbTestData;
+import static com.mmt.travel.app.NFR.Latency.ClockType.*;
+import static com.mmt.travel.app.Utils.ElementUtil.waitUntil;
+import static junit.framework.Assert.assertNotNull;
+
+/**
+ * Created by MMT6054 on 16-Aug-17.
+ */
+
+@RunWith(AndroidJUnit4.class)
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
+public class B_HotelThreadLatencyTest extends DelayCriticalBaseTest {
+
+    private static final String TAG = "HotelPage";
+    HotelsLanding hotelsLanding = new HotelsLanding();
+    HotelsListing hotelsListing = new HotelsListing();
+    HotelsDetails hotelsDetails = new HotelsDetails();
+    HotelsSelectRoom hotelsSelectRoom = new HotelsSelectRoom();
+    HotelsReview hotelsReview = new HotelsReview();
+    HotelsPayment hotelsPayment = new HotelsPayment();
+
+    @Rule
+    public ActivityTestRule<SplashActivity> activityTestRule = new ActivityTestRule<>(SplashActivity.class, true, true);
+
+
+ 
+    public void setSearchData() {
+        HotelDbTestData hotelDbTestData = new HotelDbTestData();
+        HotelSearchData hotelSearchData = new HotelSearchData();
+        HotelTravellerData travellerData = new HotelTravellerData();
+
+        hotelSearchData.setCity("Goa");
+        hotelSearchData.setRoomExpression("2e0e");
+        hotelSearchData.setCheckin(30);
+        hotelSearchData.setCheckout(31);
+        hotelSearchData.setTariffType(TariffType.lowest);
+        hotelSearchData.setBookingType("PAS");
+        hotelDbTestData.setSearchData(hotelSearchData);
+
+
+        travellerData.setMobNo(7795337644L);
+        travellerData.setfName("ftest");
+        travellerData.setlName("ltest");
+        travellerData.setEmailId("test@mmt.com");
+        hotelDbTestData.setTravellerData(travellerData);
+        setHotelDbTestData(hotelDbTestData);
+    }
+
+    @Test
+    @Lob(stringValue = "HTL_Landing")
+    public void a_openHtlLandingPage() throws TimeoutException, InterruptedException, IOException {
+        setSearchData();
+        Assert.assertTrue("espressoLog - error in open method of hotelsLanding.", hotelsLanding.open(getHotelDbTestData()));
+        Assert.assertTrue(waitUntil(HotelConstant.HOTEL_SEARCH,0,2000,100));
+        captureThreadData(PgNameForDelayTread.hotelLanding);
+    }
+
+
+    @Test
+    @Lob(stringValue = "HTL_Listing")
+    public void b_openHotelListingPage() throws TimeoutException,InterruptedException {
+        setSearchData();
+        Assert.assertTrue("espressoLog - error in open method of hotelsLanding.", hotelsLanding.open(getHotelDbTestData()));
+        Assert.assertTrue("espressoLog - error in open method of hotelsListing.", hotelsListing.open());
+        captureThreadData(PgNameForDelayTread.hotelListing);
+    }
+
+    @Test
+    @Lob(stringValue = "HTL_Detail")
+    public void c_openDetailPage() throws TimeoutException,InterruptedException {
+        setSearchData();
+        Map<String, Object> abExpMap = new HashMap<>();
+        abExpMap.put("showVideos",true);
+        AbExperimentUtil.updateABValues(abExpMap);
+        getHotelDbTestData().getSearchData().setCity("Hilton Jaipur");
+        Assert.assertTrue("espressoLog - error in open method of hotelsLanding.", hotelsLanding.open(getHotelDbTestData()));
+        Assert.assertTrue("espressoLog - error in open method of hotelsListing.", hotelsListing.open());
+        Assert.assertTrue("espressoLog - error in open method of hotelsDetails.", hotelsDetails.open());
+        captureThreadData(PgNameForDelayTread.hotelDetail);
+    }
+
+    @Test
+    @Lob(stringValue = "HTL_SelectRoom")
+    public void d_openSelectRoomPage() throws TimeoutException,InterruptedException {
+        setSearchData();
+        Map<String, Object> abExpMap = new HashMap<>();
+        abExpMap.put("showVideos",false);
+        AbExperimentUtil.updateABValues(abExpMap);
+        getHotelDbTestData().getSearchData().setCity("Ginger Jaipur");
+        Assert.assertTrue("espressoLog - error in open method of hotelsLanding.", hotelsLanding.open(getHotelDbTestData()));
+        Assert.assertTrue("espressoLog - error in open method of hotelsListing.", hotelsListing.open());
+        Assert.assertTrue("espressoLog - error in open method of hotelsDetails.", hotelsDetails.open());
+        Assert.assertTrue("espressoLog - error in open method of hotelsSelectRoom.", hotelsSelectRoom.open());
+        captureThreadData(PgNameForDelayTread.hotelSelectRoom);
+    }
+
+    @Test
+    @Lob(stringValue = "HTL_ReviewPage")
+    public void e_openReviewPage() throws TimeoutException,InterruptedException {
+        setSearchData();
+        Map<String, Object> abExpMap = new HashMap<>();
+        abExpMap.put("showVideos",false);
+        AbExperimentUtil.updateABValues(abExpMap);
+        getHotelDbTestData().getSearchData().setCity("Ginger Jaipur");
+        Assert.assertTrue("espressoLog - error in open method of hotelsLanding.", hotelsLanding.open(getHotelDbTestData()));
+        Assert.assertTrue("espressoLog - error in open method of hotelsListing.", hotelsListing.open());
+        Assert.assertTrue("espressoLog - error in open method of hotelsDetails.", hotelsDetails.open());
+        Assert.assertTrue("espressoLog - error in open method of hotelsSelectRoom.", hotelsSelectRoom.open());
+        Assert.assertTrue("espressoLog - error in selecting tariff of hotelsSelectRoom.", hotelsSelectRoom.selectNVerifyTariff());
+        Assert.assertTrue("espressoLog - error in open method of hotelsReview.", hotelsReview.open());
+        captureThreadData(PgNameForDelayTread.hotelReview);
+    }
+
+    @Test
+    @Lob(stringValue = "HTL_PaymentPage")
+    public void f_openPaymentPage() throws TimeoutException,InterruptedException {
+        setSearchData();
+        Map<String, Object> abExpMap = new HashMap<>();
+        abExpMap.put("showVideos",false);
+        AbExperimentUtil.updateABValues(abExpMap);
+        getHotelDbTestData().getSearchData().setCity("Ginger Jaipur");
+        Assert.assertTrue("espressoLog - error in open method of hotelsLanding.", hotelsLanding.open(getHotelDbTestData()));
+        Assert.assertTrue("espressoLog - error in open method of hotelsListing.", hotelsListing.open());
+        Assert.assertTrue("espressoLog - error in open method of hotelsDetails.", hotelsDetails.open());
+        Assert.assertTrue("espressoLog - error in open method of hotelsSelectRoom.", hotelsSelectRoom.open());
+        Assert.assertTrue("espressoLog - error in selecting tariff of hotelsSelectRoom.", hotelsSelectRoom.selectNVerifyTariff());
+        Assert.assertTrue("espressoLog - error in open method of hotelsReview.", hotelsReview.open());
+        Assert.assertTrue("espressoLog - error in open method of hotelsPayments.", hotelsPayment.open(false));
+        captureThreadData(PgNameForDelayTread.hotelPayment);
+    }
+
+}
